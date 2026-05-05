@@ -5,78 +5,84 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @Service
 public class AIChatService {
 
-    @Value("${GEMINI_API_KEY}")
+    @Value("${OPENROUTER_API_KEY}")
     private String API_KEY;
 
     private final WebClient webClient = WebClient.builder()
-            .baseUrl("https://generativelanguage.googleapis.com")
+            .baseUrl("https://openrouter.ai/api/v1")
             .build();
 
     private final ObjectMapper mapper = new ObjectMapper();
 
     public String getAIResponse(String message) {
-
         try {
-            // ✅ SAFE JSON (no string.format)
+            // Build request JSON
             ObjectNode root = mapper.createObjectNode();
-            ArrayNode contents = mapper.createArrayNode();
-            ObjectNode content = mapper.createObjectNode();
-            ArrayNode parts = mapper.createArrayNode();
 
-            ObjectNode part = mapper.createObjectNode();
-            part.put("text", "You are a supportive mental health assistant. Respond empathetically. User: " + message);
+            // 🟢 EASIEST FREE ROUTER (avoids model 404s)
+            root.put("model", "openrouter/free");
 
-            parts.add(part);
-            content.put("role", "user");
-            content.set("parts", parts);
-            contents.add(content);
-            root.set("contents", contents);
+            ArrayNode messages = mapper.createArrayNode();
 
-            String jsonBody = mapper.writeValueAsString(root);
+            ObjectNode system = mapper.createObjectNode();
+            system.put("role", "system");
+            system.put("content", "You are a supportive mental health assistant. Respond empathetically and safely.");
 
+            ObjectNode user = mapper.createObjectNode();
+            user.put("role", "user");
+            user.put("content", message);
+
+            messages.add(system);
+            messages.add(user);
+
+            root.set("messages", messages);
+
+            // Call OpenRouter
             String response = webClient.post()
-                    .uri("/v1beta/models/gemini-2.0-flash:generateContent?key=" + API_KEY)
-                    .header("Content-Type", "application/json")
-                    .bodyValue(jsonBody)
+                    .uri("/chat/completions") // IMPORTANT: do NOT add /api/v1 again
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+                    .header("HTTP-Referer", "http://localhost") // keep simple for testing
+                    .header("X-Title", "MindCare AI")
+                    .header("User-Agent", "Mozilla/5.0") // helps avoid 404 routing issues
+                    .bodyValue(mapper.writeValueAsString(root))
                     .retrieve()
-                    .onStatus(status -> status.isError(), res ->
-                            res.bodyToMono(String.class)
-                                    .map(err -> new RuntimeException("Gemini API Error: " + err))
-                    )
                     .bodyToMono(String.class)
                     .block();
 
-            System.out.println("Gemini Response: " + response);
+            System.out.println("OpenRouter Response: " + response);
+
+            if (response == null || response.isEmpty()) {
+                return "I'm here for you 💙";
+            }
 
             JsonNode rootNode = mapper.readTree(response);
 
-            JsonNode candidates = rootNode.path("candidates");
-
-            if (!candidates.isArray() || candidates.size() == 0) {
-                return "I'm here for you.";
+            // Surface API errors if present
+            if (rootNode.has("error")) {
+                return rootNode.get("error").toString();
             }
 
-            JsonNode partsNode = candidates.get(0)
+            JsonNode choices = rootNode.path("choices");
+            if (!choices.isArray() || choices.size() == 0) {
+                return "I'm here for you 💙";
+            }
+
+            return choices.get(0)
+                    .path("message")
                     .path("content")
-                    .path("parts");
-
-            if (!partsNode.isArray() || partsNode.size() == 0) {
-                return "I'm here for you.";
-            }
-
-            return partsNode.get(0)
-                    .path("text")
-                    .asText("I'm here for you.");
+                    .asText("I'm here for you 💙");
 
         } catch (Exception e) {
             e.printStackTrace();
-            return e.getMessage(); 
+            return e.getMessage(); // keep during debugging
         }
     }
 }
