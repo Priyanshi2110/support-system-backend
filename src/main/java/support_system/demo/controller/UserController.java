@@ -8,6 +8,7 @@ import support_system.demo.service.UserService;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -91,7 +92,7 @@ public class UserController {
                     therapistInfo.put("email", user.getEmail());
                     return therapistInfo;
                 })
-                .toList();
+                .collect(Collectors.toList());
         return ResponseEntity.ok(response);
     }
 }

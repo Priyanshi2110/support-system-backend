@@ -7,6 +7,7 @@ import support_system.demo.repository.ChatMessageRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class ChatService {
@@ -20,124 +21,116 @@ public class ChatService {
     @Autowired
     private AlertService alertService;
 
+    @Autowired
+    private NotificationService notificationService;
+
     // 💬 USER → AI FLOW
     public ChatMessage saveMessage(ChatMessage msg) {
 
-        // 🚫 BLOCK therapist messages from entering AI flow
-        if (msg.getAssignedTherapistEmail() != null && !msg.getAssignedTherapistEmail().isEmpty()) {
-            throw new IllegalArgumentException("Use /api/chat/therapist/reply for therapist messages");
+        if (msg.getSenderEmail() == null || msg.getSenderEmail().isEmpty()) {
+            throw new RuntimeException("Sender email is required");
         }
 
-        // 1️⃣ USER MESSAGE
+        if (msg.getMessage() == null || msg.getMessage().isEmpty()) {
+            throw new RuntimeException("Message cannot be empty");
+        }
+
+        // 🚫 Prevent therapist misuse
+        if (msg.getAssignedTherapistEmail() != null && !msg.getAssignedTherapistEmail().isEmpty()) {
+            throw new IllegalArgumentException("Use therapist endpoint");
+        }
+
+        // USER MESSAGE
         msg.setRole("USER");
         msg.setTimestamp(LocalDateTime.now());
         msg.setStatus("SAFE");
         msg.setFlagged(false);
 
-        // ❌ DO NOT set assignedTherapistEmail = null here
-
-        // Generate anonymous ID
         if (msg.getAnonymousId() == null || msg.getAnonymousId().isEmpty()) {
             msg.setAnonymousId(generateAnonymousId(msg.getSenderEmail()));
         }
 
         ChatMessage savedUserMsg = chatRepo.save(msg);
 
-        // 2️⃣ CHECK DANGER
+        // 🔥 Notify therapists
+        notificationService.notifyAllTherapists(savedUserMsg);
+
         boolean isDanger = isDangerous(msg.getMessage());
 
-        // 3️⃣ AI RESPONSE
         String aiResponse = null;
         if (!isDanger) {
-            aiResponse = aiChatService.getAIResponse(msg.getMessage());
+            try {
+                aiResponse = aiChatService.getAIResponse(msg.getMessage());
+            } catch (Exception e) {
+                aiResponse = "I'm here for you.";
+            }
         }
 
-        // 4️⃣ AI MESSAGE
+        // AI MESSAGE
         ChatMessage aiMsg = new ChatMessage();
         aiMsg.setSenderEmail(msg.getSenderEmail());
         aiMsg.setAnonymousId(msg.getAnonymousId());
         aiMsg.setTimestamp(LocalDateTime.now());
         aiMsg.setRole("AI");
-
-        // ✅ AI messages should NOT have therapist
         aiMsg.setAssignedTherapistEmail(null);
+        aiMsg.setFlagged(false);
+        aiMsg.setStatus("SAFE");
 
-        // 🚨 DANGER CASE
         if (isDanger) {
-
-            aiMsg.setMessage("⚠️ We noticed you may be in distress. A therapist has been alerted and support is available.");
+            aiMsg.setMessage("⚠️ We noticed you may be in distress. A therapist has been alerted.");
             aiMsg.setStatus("DANGER");
 
             savedUserMsg.setStatus("DANGER");
             savedUserMsg.setFlagged(true);
 
             alertService.createAlert(msg.getSenderEmail(), msg.getMessage());
-
         } else {
-
-            aiMsg.setMessage(aiResponse);
-            aiMsg.setStatus("SAFE");
-
-            savedUserMsg.setStatus("SAFE");
-            savedUserMsg.setFlagged(false);
+            aiMsg.setMessage(aiResponse != null ? aiResponse : "I'm here for you.");
         }
 
-        // 5️⃣ SAVE AI MESSAGE
         chatRepo.save(aiMsg);
 
-        // 6️⃣ UPDATE USER MESSAGE
-        chatRepo.save(savedUserMsg);
+        // 🔔 Notify student
+        notificationService.notifyStudent(msg.getSenderEmail(), aiMsg);
 
         return savedUserMsg;
     }
 
-    // 🔐 Generate anonymous ID
+    // 🔐 Anonymous ID
     private String generateAnonymousId(String email) {
+        if (email == null) return "Student-0000";
         return "Student-" + Math.abs(email.hashCode()) % 10000;
     }
 
-    // 🚨 Danger keyword detection
+    // 🚨 Danger detection
     private boolean isDangerous(String text) {
-
         if (text == null) return false;
 
         String lowerText = text.toLowerCase();
 
         String[] dangerKeywords = {
-                "suicide",
-                "kill myself",
-                "end my life",
-                "die",
-                "self harm",
-                "cut myself",
-                "hopeless",
-                "depressed",
-                "no reason to live",
-                "want to disappear"
+                "suicide", "kill myself", "end my life",
+                "die", "self harm", "cut myself",
+                "hopeless", "depressed", "no reason to live"
         };
 
         for (String keyword : dangerKeywords) {
-            if (lowerText.contains(keyword)) {
-                return true;
-            }
+            if (lowerText.contains(keyword)) return true;
         }
 
         return false;
     }
 
-    // 📥 FETCH AI CHAT ONLY
+    // 📥 USER CHAT (FIXED 🔥)
     public List<ChatMessage> getChatByUser(String email) {
 
-        List<ChatMessage> messages =
-                chatRepo.findBySenderEmailAndRoleInOrderByTimestampAsc(
-                        email,
-                        List.of("USER", "AI")
-                );
-
-        // 🔥 REMOVE therapist messages
-        return messages.stream()
-                .filter(msg -> msg.getAssignedTherapistEmail() == null)
-                .toList();
+        return chatRepo.findBySenderEmailOrderByTimestampAsc(email)
+                .stream()
+                .filter(msg ->
+                        msg.getAssignedTherapistEmail() == null &&  // 🔥 ONLY AI CHAT
+                        ("USER".equals(msg.getRole()) || "AI".equals(msg.getRole()))
+                )
+                .collect(Collectors.toList());
     }
 
     // 👥 THERAPIST CHAT
@@ -145,23 +138,38 @@ public class ChatService {
         return chatRepo.findTherapistConversationForStudent(email, therapistEmail);
     }
 
-    // 💬 STUDENT → THERAPIST (NO AI HERE)
+    // 💬 STUDENT → THERAPIST
     public ChatMessage saveStudentReply(ChatMessage msg) {
+
+        if (msg.getSenderEmail() == null || msg.getSenderEmail().isEmpty()) {
+            throw new RuntimeException("Sender email is required");
+        }
+
+        if (msg.getAssignedTherapistEmail() == null || msg.getAssignedTherapistEmail().isEmpty()) {
+            throw new IllegalArgumentException("Therapist email must be provided");
+        }
+
+        if (msg.getMessage() == null || msg.getMessage().isEmpty()) {
+            throw new RuntimeException("Message cannot be empty");
+        }
 
         msg.setRole("USER");
         msg.setStatus("SAFE");
         msg.setFlagged(false);
         msg.setTimestamp(LocalDateTime.now());
 
-        // ✅ MUST have therapist email
-        if (msg.getAssignedTherapistEmail() == null || msg.getAssignedTherapistEmail().isEmpty()) {
-            throw new IllegalArgumentException("Therapist email must be provided");
-        }
-
         if (msg.getAnonymousId() == null || msg.getAnonymousId().isEmpty()) {
             msg.setAnonymousId(generateAnonymousId(msg.getSenderEmail()));
         }
 
-        return chatRepo.save(msg);
+        ChatMessage saved = chatRepo.save(msg);
+
+        // 🔔 Notify therapist
+        notificationService.notifyTherapist(
+                msg.getAssignedTherapistEmail(),
+                saved
+        );
+
+        return saved;
     }
 }

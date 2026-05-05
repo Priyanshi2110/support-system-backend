@@ -1,6 +1,6 @@
 package support_system.demo.model;
 
-import jakarta.persistence.*;
+import javax.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
@@ -13,10 +13,12 @@ public class ChatMessage {
 
     private String senderEmail; // student email
 
-    private String anonymousId; // anonymous identifier for therapist view
+    private String anonymousId; // anonymous identifier
 
-    private String assignedTherapistEmail; // therapist channel assignment
+    private String assignedTherapistEmail; // therapist assignment
 
+    // ✅ FIXED (VERY IMPORTANT)
+    @Column(columnDefinition = "TEXT")
     private String message;
 
     private String role; // USER / AI / THERAPIST
@@ -25,13 +27,13 @@ public class ChatMessage {
 
     private LocalDateTime timestamp;
 
-    private boolean flagged = false; // danger detection
+    private boolean flagged = false;
 
     public ChatMessage() {
         this.timestamp = LocalDateTime.now();
     }
 
-    // getters & setters
+    // ===== GETTERS & SETTERS =====
 
     public Long getId() {
         return id;

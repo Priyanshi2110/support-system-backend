@@ -15,10 +15,13 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
     // 👤 Get chat by student email
     List<ChatMessage> findBySenderEmail(String email);
 
-    // � Get only student / AI chat messages
+    // 🔥 REQUIRED FIX (THIS WAS MISSING)
+    List<ChatMessage> findBySenderEmailOrderByTimestampAsc(String senderEmail);
+
+    // 📥 Get only student / AI chat messages
     List<ChatMessage> findBySenderEmailAndRoleInOrderByTimestampAsc(String email, List<String> roles);
 
-    // �🚨 Get messages by status (SAFE / DANGER / ESCALATED)
+    // 🚨 Get messages by status (SAFE / DANGER / ESCALATED)
     List<ChatMessage> findByStatus(String status);
 
     // 🚩 Get only flagged messages

@@ -1,4 +1,5 @@
 package support_system.demo.controller;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import support_system.demo.model.ChatMessage;
@@ -18,27 +19,36 @@ public class ChatController {
     @Autowired
     private TherapistService therapistService;
 
-    // 💬 SEND MESSAGE (USER → AI FLOW)
+    // 💬 USER → AI
     @PostMapping("/send")
     public ChatMessage sendMessage(@RequestBody ChatMessage msg) {
         return chatService.saveMessage(msg);
     }
 
-    // 📥 GET CHAT HISTORY
+    // 📥 STUDENT CHAT HISTORY
     @GetMapping("/{email}")
     public List<ChatMessage> getChat(@PathVariable String email) {
         return chatService.getChatByUser(email);
     }
 
-    // 👥 GET THERAPIST CONVERSATION FOR STUDENT
+    // 👥 STUDENT ↔ THERAPIST CHAT
     @GetMapping("/therapist/{email}/{therapistEmail}")
-    public List<ChatMessage> getTherapistChat(@PathVariable String email, @PathVariable String therapistEmail) {
+    public List<ChatMessage> getTherapistChat(
+            @PathVariable String email,
+            @PathVariable String therapistEmail
+    ) {
         return chatService.getTherapistChatByEmailAndTherapistEmail(email, therapistEmail);
     }
 
-    // 💬 STUDENT REPLY TO THERAPIST
+    // 💬 STUDENT → THERAPIST
     @PostMapping("/therapist/reply")
     public ChatMessage studentReply(@RequestBody ChatMessage msg) {
         return chatService.saveStudentReply(msg);
+    }
+
+    // 💬 THERAPIST → STUDENT 🔥 (IMPORTANT)
+    @PostMapping("/therapist/send")
+    public ChatMessage therapistReply(@RequestBody ChatMessage msg) {
+        return therapistService.sendTherapistReply(msg);
     }
 }

@@ -2,6 +2,8 @@ package support_system.demo.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -9,7 +11,6 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Service
 public class AIChatService {
 
-    // ✅ Read API key from Render environment variable
     @Value("${GEMINI_API_KEY}")
     private String API_KEY;
 
@@ -22,39 +23,56 @@ public class AIChatService {
     public String getAIResponse(String message) {
 
         try {
+            // ✅ SAFE JSON (no string.format)
+            ObjectNode root = mapper.createObjectNode();
+            ArrayNode contents = mapper.createArrayNode();
+            ObjectNode content = mapper.createObjectNode();
+            ArrayNode parts = mapper.createArrayNode();
+
+            ObjectNode part = mapper.createObjectNode();
+            part.put("text", "You are a supportive mental health assistant. Respond empathetically. User: " + message);
+
+            parts.add(part);
+            content.put("role", "user");
+            content.set("parts", parts);
+            contents.add(content);
+            root.set("contents", contents);
+
+            String jsonBody = mapper.writeValueAsString(root);
+
             String response = webClient.post()
-                    .uri("/v1beta/models/gemini-2.5-flash:generateContent?key=" + API_KEY)
+                    .uri("/v1beta/models/gemini-flash-latest:generateContent?key=" + API_KEY)
                     .header("Content-Type", "application/json")
-                    .bodyValue("""
-                    {
-                      "contents": [
-                        {
-                          "role": "user",
-                          "parts": [
-                            {
-                              "text": "You are a supportive mental health assistant. Respond empathetically. User: %s"
-                            }
-                          ]
-                        }
-                      ]
-                    }
-                    """.formatted(message))
+                    .bodyValue(jsonBody)
                     .retrieve()
+                    .onStatus(status -> status.isError(), res ->
+                            res.bodyToMono(String.class)
+                                    .map(err -> new RuntimeException("Gemini API Error: " + err))
+                    )
                     .bodyToMono(String.class)
                     .block();
 
             System.out.println("Gemini Response: " + response);
 
-            JsonNode root = mapper.readTree(response);
+            JsonNode rootNode = mapper.readTree(response);
 
-            return root
-                    .path("candidates")
-                    .get(0)
+            JsonNode candidates = rootNode.path("candidates");
+
+            if (!candidates.isArray() || candidates.size() == 0) {
+                return "I'm here for you.";
+            }
+
+            JsonNode partsNode = candidates.get(0)
                     .path("content")
-                    .path("parts")
-                    .get(0)
+                    .path("parts");
+
+            if (!partsNode.isArray() || partsNode.size() == 0) {
+                return "I'm here for you.";
+            }
+
+            return partsNode.get(0)
                     .path("text")
-                    .asText();
+                    .asText("I'm here for you.");
 
         } catch (Exception e) {
             e.printStackTrace();
