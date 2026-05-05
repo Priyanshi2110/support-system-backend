@@ -53,9 +53,7 @@ public class ChatService {
         ChatMessage savedUserMsg = chatRepo.save(msg);
 
         // 🔥 Notify therapists
-        if (isDanger) {
-    notificationService.notifyAllTherapists(savedUserMsg);
-    };
+        notificationService.notifyAllTherapists(savedUserMsg);
 
         boolean isDanger = isDangerous(msg.getMessage());
 
