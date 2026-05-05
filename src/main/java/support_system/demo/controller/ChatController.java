@@ -25,26 +25,28 @@ public class ChatController {
 
     // 💬 USER → AI
     @PostMapping("/send")
-    public ChatMessage sendMessage(@RequestBody ChatMessage msg) {
+public ChatMessage sendMessage(@RequestBody ChatMessage msg) {
 
-    // USER message
+    // ✅ 1. SAVE USER MESSAGE
     msg.setRole("USER");
     ChatMessage savedUser = chatService.saveMessage(msg);
 
-    // AI response
+    // ✅ 2. GET AI RESPONSE
     String aiReply = aiChatService.getAIResponse(msg.getMessage());
 
-    // AI message
+    // ✅ 3. CREATE NEW AI MESSAGE (IMPORTANT)
     ChatMessage aiMessage = new ChatMessage();
     aiMessage.setSenderEmail(msg.getSenderEmail());
     aiMessage.setMessage(aiReply);
-    aiMessage.setRole("AI"); // ✅ VERY IMPORTANT
+    aiMessage.setRole("AI");
     aiMessage.setTimestamp(java.time.LocalDateTime.now());
     aiMessage.setAssignedTherapistEmail(null);
     aiMessage.setAnonymousId(msg.getAnonymousId());
 
+    // ✅ 4. SAVE AI MESSAGE
     ChatMessage savedAI = chatService.saveMessage(aiMessage);
 
+    // ✅ 5. RETURN AI (frontend + socket will use this)
     return savedAI;
 }
 
