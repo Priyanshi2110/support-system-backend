@@ -88,13 +88,12 @@ public class ChatService {
             aiMsg.setMessage(aiResponse != null ? aiResponse : "I'm here for you.");
         }
 
-        ChatMessage savedAI = chatRepo.save(aiMsg);
+        chatRepo.save(aiMsg);
 
-// 🔔 Notify student
-        notificationService.notifyStudent(msg.getSenderEmail(), savedAI);
+        // 🔔 Notify student
+        notificationService.notifyStudent(msg.getSenderEmail(), aiMsg);
 
-// ✅ RETURN AI MESSAGE
-        return savedAI;
+        return savedUserMsg;
     }
 
     // 🔐 Anonymous ID
