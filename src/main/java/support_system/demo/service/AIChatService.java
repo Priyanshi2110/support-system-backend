@@ -41,7 +41,7 @@ public class AIChatService {
             String jsonBody = mapper.writeValueAsString(root);
 
             String response = webClient.post()
-                    .uri("/v1beta/models/gemini-flash-latest:generateContent?key=" + API_KEY)
+                    .uri("/v1beta/models/gemini-2.0-flash:generateContent?key=" + API_KEY)
                     .header("Content-Type", "application/json")
                     .bodyValue(jsonBody)
                     .retrieve()
