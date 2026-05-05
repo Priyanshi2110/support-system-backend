@@ -53,7 +53,9 @@ public class ChatService {
         ChatMessage savedUserMsg = chatRepo.save(msg);
 
         // 🔥 Notify therapists
-        notificationService.notifyAllTherapists(savedUserMsg);
+        if (isDanger) {
+    notificationService.notifyAllTherapists(savedUserMsg);
+    };
 
         boolean isDanger = isDangerous(msg.getMessage());
 
@@ -88,12 +90,13 @@ public class ChatService {
             aiMsg.setMessage(aiResponse != null ? aiResponse : "I'm here for you.");
         }
 
-        chatRepo.save(aiMsg);
+        ChatMessage savedAI = chatRepo.save(aiMsg);
 
-        // 🔔 Notify student
-        notificationService.notifyStudent(msg.getSenderEmail(), aiMsg);
+// 🔔 Notify student
+        notificationService.notifyStudent(msg.getSenderEmail(), savedAI);
 
-        return savedUserMsg;
+// ✅ RETURN AI MESSAGE
+        return savedAI;
     }
 
     // 🔐 Anonymous ID

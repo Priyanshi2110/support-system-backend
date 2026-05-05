@@ -27,25 +27,24 @@ public class ChatController {
     @PostMapping("/send")
     public ChatMessage sendMessage(@RequestBody ChatMessage msg) {
 
-    // 1. Save USER message
+    // USER message
     msg.setRole("USER");
     ChatMessage savedUser = chatService.saveMessage(msg);
 
-    // 2. Call AI
+    // AI response
     String aiReply = aiChatService.getAIResponse(msg.getMessage());
 
-    // 3. Save AI message
+    // AI message
     ChatMessage aiMessage = new ChatMessage();
     aiMessage.setSenderEmail(msg.getSenderEmail());
     aiMessage.setMessage(aiReply);
-    aiMessage.setRole("AI");
+    aiMessage.setRole("AI"); // ✅ VERY IMPORTANT
     aiMessage.setTimestamp(java.time.LocalDateTime.now());
     aiMessage.setAssignedTherapistEmail(null);
     aiMessage.setAnonymousId(msg.getAnonymousId());
 
     ChatMessage savedAI = chatService.saveMessage(aiMessage);
 
-    // 4. RETURN AI MESSAGE (CRITICAL)
     return savedAI;
 }
 
