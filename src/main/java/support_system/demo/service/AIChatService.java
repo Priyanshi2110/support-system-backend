@@ -76,7 +76,7 @@ public class AIChatService {
 
         } catch (Exception e) {
             e.printStackTrace();
-            return "I'm here for you. Please try again.";
+            return e.getMessage(); 
         }
     }
 }
