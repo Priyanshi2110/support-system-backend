@@ -11,15 +11,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("http://localhost:3000")
+                .setAllowedOriginPatterns(
+                        "http://localhost:3000",
+                        "https://support-system-frontend-six.vercel.app"
+                )
                 .withSockJS();
     }
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        // ✅ FIX: removed heartbeat
         registry.enableSimpleBroker("/topic");
-
         registry.setApplicationDestinationPrefixes("/app");
     }
 }
