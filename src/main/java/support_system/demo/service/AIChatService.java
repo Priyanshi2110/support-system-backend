@@ -11,7 +11,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Service
 public class AIChatService {
 
-    @Value("${gemini.api.key}")
+    @Value("${GEMINI_API_KEY}")
     private String API_KEY;
 
     private final WebClient webClient = WebClient.builder()
